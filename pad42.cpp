@@ -19,11 +19,12 @@ void enableRawMode();
 void disableRawMode();
 void die(const char* s);
 void editorProcessKeyPress();
-char editorReader();
+int editorReader();
 void editorClearScreen();
 void editorDrawRows();
 void initEditor();
 int getCursorPosition( int *rows, int *cols);
+void editorMoveCursor(int c);
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -36,6 +37,16 @@ struct editorConfig {
 
 struct appendBuffer {
     std::string apBuf;
+};
+
+
+enum editorKey {
+    LEFT = 1000,
+    RIGHT,
+    UP,
+    DOWN,
+    PAGE_UP,
+    PAGE_DOWN
 };
 
 struct editorConfig E;
@@ -61,8 +72,9 @@ void editorClearScreen() {
     //A.apBuf +="\x1b[2J";
     A.apBuf += "\x1b[H";
 
-    editorDrawRows();
-    A.apBuf += "\x1b[H";
+    editorDrawRows(); 
+
+    A.apBuf += "\x1b[" + std::to_string(E.cy + 1) + ";" + std::to_string(E.cx + 1) + "H";
     A.apBuf +="\x1b[?25h";
 
     write(STDOUT_FILENO, A.apBuf.c_str(), A.apBuf.size());
@@ -72,7 +84,6 @@ void editorClearScreen() {
 
 void editorDrawRows() {
 
-    std::cout<<"Drawing Rows"<<"\r\n";
     for(int i{1}; i<E.screenRows; i++) {
         if (i == E.screenRows /3) {
             std::string welcome = "Pad 42 Editor -- version 0.1";
@@ -98,12 +109,55 @@ void editorDrawRows() {
 //*** INPUT ***//
 //process the input
 void editorProcessKeyPress() {
-    char c =editorReader();
+    int c =editorReader();
     switch(c) {
         case CTRL_KEY('q'):
             write(STDOUT_FILENO, "\x1b[2j", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
+            break;
+        case UP:
+        case LEFT:
+        case DOWN:
+        case RIGHT:
+            editorMoveCursor(c);
+            break;
+        case PAGE_UP:
+        case PAGE_DOWN:
+            {
+                int move = E.screenRows;
+                while(move > 0) {
+                    if(c == PAGE_UP) editorMoveCursor(UP);
+                    if(c == PAGE_DOWN) editorMoveCursor(DOWN);
+                    --move;
+                }
+
+            }
+            break;
+    }
+}
+
+void editorMoveCursor(int key) {
+    switch (key) {
+        case UP:
+            if(E.cy != 0) {
+                --E.cy;
+            }
+            break;
+        case LEFT:
+            if(E.cx != 0) {
+                --E.cx;
+            }
+            break;
+        case DOWN:
+            if(E.cy != E.screenRows -1 ) {
+                ++E.cy;
+            }
+            break;
+        case RIGHT:
+            if(E.cx != E.screenCols-1) {
+                ++E.cx;
+            }
             break;
     }
 }
@@ -114,14 +168,48 @@ void editorProcessKeyPress() {
 /*** TERMINAL ***/
 
 //read char and return
-char editorReader() {
+int editorReader() {
     char c;
     int returnCode;
     while((returnCode = read(STDIN_FILENO, &c, 1)) != 1) {
         if(returnCode == -1 && errno != EAGAIN) die("read editor reader");
     }
+    if ( c == '\x1b') {
+        char seq[3];
 
-    return c;
+        if (read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+        if (read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
+
+        if ( seq[0] == '[') {
+            if(seq[1] >= '0' && seq[1] <= '9') {
+                std::cout<<"Here we are\r\n";
+                if(read(STDIN_FILENO, &seq[2], 1) != 1) return '\x1b';
+                if(seq[2] == '~') {
+                    switch (seq[1]) {
+                        case '5':
+                            std::cout<<"Up sir\r\n";
+                            return PAGE_UP;
+                        case '6':
+                            std::cout<<"Down sir\r\n";
+                            return PAGE_DOWN;
+                    }
+                }
+
+            } else {
+                switch(seq[1]) {
+                    case 'A': return UP;
+                    case 'B': return DOWN;
+                    case 'C': return RIGHT;
+                    case 'D': return LEFT;
+                }
+
+            }
+        }
+       
+        return '\x1b';
+    } else {
+        return c;
+    }
 }
 
 int getWindowSize(int *rows, int *cols) {
@@ -208,7 +296,7 @@ void enableRawMode() {
     raw.c_cc[VMIN] = 0;
 
     //max time to wait before c returns; it's in milliseconds
-    raw.c_cc[VTIME] = 1;
+    raw.c_cc[VTIME] = 50;
 
     //set the configures settings to standard input
     if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr (enable raw mode)");
