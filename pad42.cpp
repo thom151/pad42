@@ -10,16 +10,8 @@
 #include <errno.h>
 #include <string>
 #include <sys/ioctl.h>
-
-#define CTRL_KEY(k) ((k) & 0x1f)
-
-struct editorConfig {
-    int screenRows;
-    int screenCols;
-    struct termios orig_termios;
-};
-
-struct editorConfig E;
+#include <vector>
+#include <sstream>
 
 
 /*** HEADERS ***/
@@ -31,8 +23,22 @@ char editorReader();
 void editorClearScreen();
 void editorDrawRows();
 void initEditor();
+int getCursorPosition( int *rows, int *cols);
 
+#define CTRL_KEY(k) ((k) & 0x1f)
 
+struct editorConfig {
+    int screenRows;
+    int screenCols;
+    struct termios orig_termios;
+};
+
+struct appendBuffer {
+    std::string apBuf;
+};
+
+struct editorConfig E;
+struct appendBuffer A;
 
 /*** MAIN LOOP ***/
 int main() {
@@ -59,9 +65,15 @@ void editorClearScreen() {
 
 
 void editorDrawRows() {
+
+    std::cout<<"Drawing Rows"<<"\r\n";
     for(int i{1}; i<E.screenRows; i++) {
-        std::string rowNums = std::to_string(i) + "\r\n";
-        write(STDOUT_FILENO, rowNums.c_str(), rowNums.size());
+        std::string rowNums = std::to_string(i);
+        write(STDOUT_FILENO, "~", 1);
+
+        if (i < E.screenRows - 1) {
+            write(STDOUT_FILENO, "\r\n", 2);
+        }
     }
 }
 
@@ -74,7 +86,7 @@ void editorProcessKeyPress() {
     switch(c) {
         case CTRL_KEY('q'):
             write(STDOUT_FILENO, "\x1b[2j", 4);
-
+            write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
             break;
     }
@@ -109,11 +121,55 @@ int getWindowSize(int *rows, int *cols) {
 
 }
 
-/* **TODO**
+
 int getWindowsSizeFallBack(int *rows, int *cols) {
-    
+    struct winsize sz;
+
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &sz) == -1 || sz.ws_col == 0) {
+        if(write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) return -1;
+        return getCursorPosition(rows, cols);
+    } else {
+        *cols = sz.ws_col;
+        *rows = sz.ws_row;
+    }
+
+    return 0;
+
+
 }
-*/
+
+int getCursorPosition( int *rows, int *cols) {
+    if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4) return -1;
+    
+
+    std::vector<char> buf(32);
+    unsigned int i = 0;
+
+
+      std::cout<<"\r\n";
+
+    while (i < buf.size()) {
+        if(read(STDIN_FILENO, &buf[i], 1) != 1) break;
+
+        //if we reach the end of the STDIN
+        if(buf[i] == 'R') break;
+        ++i;
+    }
+    buf[i] = '\0';
+
+
+
+    // example : <esc>[24;80
+    if(buf[0] != '\x1b' || buf[1] != '[') return -1;
+    std::istringstream ss(&buf[2]);
+    ss >> *rows;
+    ss.ignore(1);
+    ss >> *cols;
+
+
+    return 0;
+}
+
 
 void enableRawMode() {
 
@@ -151,7 +207,7 @@ void disableRawMode() {
 
 void die(const char *s) {
     write(STDOUT_FILENO, "\x1b[2j", 4);
-
+    write(STDOUT_FILENO, "\x1b[H", 3);
     std::cerr<< s;
     exit(1);
 }
@@ -160,5 +216,5 @@ void die(const char *s) {
 
 /*** INIT ***/
 void initEditor() {
-    if(getWindowSize(&E.screenRows, &E.screenCols) == -1) die("getWindowSize init");
+    if(getWindowsSizeFallBack(&E.screenRows, &E.screenCols) == -1) die("getWindowSize init");
 }
