@@ -73,8 +73,18 @@ void editorDrawRows() {
 
     std::cout<<"Drawing Rows"<<"\r\n";
     for(int i{1}; i<E.screenRows; i++) {
-        std::string rowNums = std::to_string(i);
-        A.apBuf += "~";
+        if (i == E.screenRows /3) {
+            std::string welcome = "Pad 42 Editor -- version 0.1";
+            A.apBuf += "~";
+            int spaces = (E.screenCols - welcome.length())/2-1;
+            for(; spaces > 0; --spaces) {
+                A.apBuf+=" ";
+            }
+    
+            A.apBuf += welcome;
+        } else {
+            A.apBuf += "~";
+        }
         A.apBuf += "\x1b[K";
         if (i < E.screenRows - 1) {
             A.apBuf += "\r\n";
