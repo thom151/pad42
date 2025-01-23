@@ -55,12 +55,17 @@ int main() {
 void editorClearScreen() {
 
     //writing 4 bytes to the termina;
-    write(STDOUT_FILENO, "\x1b[2j", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    //
+    A.apBuf +="\x1b[?25l";
+    //A.apBuf +="\x1b[2J";
+    A.apBuf += "\x1b[H";
 
     editorDrawRows();
+    A.apBuf += "\x1b[H";
+    A.apBuf +="\x1b[?25h";
 
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    write(STDOUT_FILENO, A.apBuf.c_str(), A.apBuf.size());
+    A.apBuf.clear();
 }
 
 
@@ -69,10 +74,10 @@ void editorDrawRows() {
     std::cout<<"Drawing Rows"<<"\r\n";
     for(int i{1}; i<E.screenRows; i++) {
         std::string rowNums = std::to_string(i);
-        write(STDOUT_FILENO, "~", 1);
-
+        A.apBuf += "~";
+        A.apBuf += "\x1b[K";
         if (i < E.screenRows - 1) {
-            write(STDOUT_FILENO, "\r\n", 2);
+            A.apBuf += "\r\n";
         }
     }
 }
