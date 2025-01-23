@@ -28,6 +28,7 @@ int getCursorPosition( int *rows, int *cols);
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 struct editorConfig {
+    int cx, cy;
     int screenRows;
     int screenCols;
     struct termios orig_termios;
@@ -231,5 +232,7 @@ void die(const char *s) {
 
 /*** INIT ***/
 void initEditor() {
+    E.cx = 0;
+    E.cy = 0;
     if(getWindowsSizeFallBack(&E.screenRows, &E.screenCols) == -1) die("getWindowSize init");
 }
