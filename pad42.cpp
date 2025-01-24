@@ -46,7 +46,10 @@ enum editorKey {
     UP,
     DOWN,
     PAGE_UP,
-    PAGE_DOWN
+    PAGE_DOWN,
+    HOME,
+    END,
+    DELETE,
 };
 
 struct editorConfig E;
@@ -134,6 +137,17 @@ void editorProcessKeyPress() {
 
             }
             break;
+        case HOME:
+        case END:
+            {
+                int move = E.screenCols;
+                while(move > 0) {
+                    if (c == HOME) E.cx = 0;
+                    if (c == END) E.cx = E.screenCols-1;
+                    --move;
+                }
+            }
+            break;
     }
 }
 
@@ -182,16 +196,13 @@ int editorReader() {
 
         if ( seq[0] == '[') {
             if(seq[1] >= '0' && seq[1] <= '9') {
-                std::cout<<"Here we are\r\n";
                 if(read(STDIN_FILENO, &seq[2], 1) != 1) return '\x1b';
                 if(seq[2] == '~') {
                     switch (seq[1]) {
-                        case '5':
-                            std::cout<<"Up sir\r\n";
-                            return PAGE_UP;
-                        case '6':
-                            std::cout<<"Down sir\r\n";
-                            return PAGE_DOWN;
+                        case '5': return PAGE_UP;
+                        case '6': return PAGE_DOWN;
+                        case '3': return DELETE;
+
                     }
                 }
 
@@ -201,6 +212,8 @@ int editorReader() {
                     case 'B': return DOWN;
                     case 'C': return RIGHT;
                     case 'D': return LEFT;
+                    case 'H': return HOME;
+                    case 'F': return END;
                 }
 
             }
